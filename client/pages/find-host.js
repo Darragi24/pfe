@@ -21,17 +21,19 @@ export default function FindHost() {
   });
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
-  // Redirect if not logged in (wait for auth to finish loading)
+  // 1. Redirect if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
     }
   }, [user, authLoading, router]);
 
-  // Fetch hosts
+  // 2. Fetch hosts whenever filters change
   useEffect(() => {
-    fetchHosts();
-  }, [filters]);
+    if (user) {
+      fetchHosts();
+    }
+  }, [filters, user]);
 
   const fetchHosts = async () => {
     try {
@@ -44,31 +46,32 @@ export default function FindHost() {
       if (filters.experience) params.append("experience", filters.experience);
 
       const token = localStorage.getItem("token");
-      console.log("fetchHosts token", token);
+      
       const response = await fetch(
-        `http://localhost:5000/api/bookings/hosts?${params.toString()}`,
+        `http://localhost:5000/api/bookings/hosts`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          method: "GET",
+          headers: { 
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
         }
       );
-      console.log("fetchHosts status", response.status);
 
-      if (!response.ok) throw new Error("Failed to fetch hosts");
+      if (response.status === 401) throw new Error("Session expired. Please login again.");
+      if (!response.ok) throw new Error("Could not load host list.");
+
       const data = await response.json();
-      setHosts(data);
+      setHosts(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message);
-      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleFilterChange = (newFilters) => {
-    setFilters((prev) => ({
-      ...prev,
-      ...newFilters,
-    }));
+    setFilters((prev) => ({ ...prev, ...newFilters }));
   };
 
   const handleBook = async (bookingData) => {
@@ -78,113 +81,129 @@ export default function FindHost() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(bookingData),
       });
 
-      if (!response.ok) throw new Error("Failed to create booking");
+      if (!response.ok) throw new Error("Booking failed. Try again later.");
 
       setBookingSuccess(true);
-      setTimeout(() => setBookingSuccess(false), 3000);
       setTimeout(() => {
+        setBookingSuccess(false);
         router.push("/bookings");
-      }, 1500);
+      }, 2000);
     } catch (err) {
-      alert("Error creating booking: " + err.message);
-      console.error(err);
+      alert(err.message);
     }
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc", color: "#1e293b" }}>
       <Navbar />
 
-      <div style={{ maxWidth: "1200px", margin: "0 auto", paddingTop: 40 }}>
-        {/* Success notification */}
+      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
+        
+        {/* Notifications */}
         {bookingSuccess && (
-          <div
-            style={{
-              backgroundColor: "#dcfce7",
-              color: "#166534",
-              padding: 16,
-              borderRadius: 8,
-              marginBottom: 20,
-              marginX: 20,
-            }}
-          >
-            ✅ Booking request sent! Redirecting to your bookings...
+          <div style={styles.successBanner}>
+            ✅ Booking request sent! Redirecting...
           </div>
         )}
 
-        {/* Error notification */}
         {error && (
-          <div
-            style={{
-              backgroundColor: "#fee2e2",
-              color: "#991b1b",
-              padding: 16,
-              borderRadius: 8,
-              marginBottom: 20,
-              marginX: 20,
-            }}
-          >
+          <div style={styles.errorBanner}>
             ❌ {error}
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 32, padding: "0 20px" }}>
-          {/* Sidebar with filters */}
+        <div style={styles.layoutGrid}>
+          {/* Sidebar */}
           <aside>
             <HostFilter onFilterChange={handleFilterChange} loading={loading} />
           </aside>
 
-          {/* Main content - host cards */}
+          {/* Main List */}
           <main>
-            <div>
-              <h2 style={{ color: "#1e293b", marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                <h2 style={{ fontSize: "1.5rem", fontWeight: "700", margin: 0 }}>
                 Available Hosts ({hosts.length})
-              </h2>
-
-              {loading && !hosts.length ? (
-                <div style={{ textAlign: "center", padding: "40px 0" }}>
-                  <p style={{ color: "#64748b" }}>Loading hosts...</p>
-                </div>
-              ) : hosts.length > 0 ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
-                    gap: 24,
-                  }}
-                >
-                  {hosts.map((host) => (
-                    <HostCard
-                      key={host._id}
-                      host={host}
-                      onBook={handleBook}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: "40px 20px",
-                    backgroundColor: "#fff",
-                    borderRadius: 12,
-                    color: "#64748b",
-                  }}
-                >
-                  <p style={{ fontSize: "1.1rem" }}>
-                    No hosts found. Try adjusting your filters.
-                  </p>
-                </div>
-              )}
+                </h2>
+                {loading && <span style={{ color: '#64748b' }}>Updating...</span>}
             </div>
+
+            {loading && !hosts.length ? (
+              <div style={styles.statusMessage}>
+                <p>Searching for the perfect hosts...</p>
+              </div>
+            ) : hosts.length > 0 ? (
+              <div style={styles.cardGrid}>
+                {hosts.map((host) => (
+                  <HostCard 
+                    key={host._id} 
+                    // We pass the host object, but ensure HostCard knows to look 
+                    // inside host.hostApplication for details
+                    host={{
+                        ...host,
+                        // Provide fallbacks in case hostApplication is missing
+                        price: host.hostApplication?.pricePerNight || 0,
+                        experience: host.hostApplication?.experience || "N/A",
+                        pets: host.hostApplication?.preferredPets || []
+                    }} 
+                    onBook={handleBook} 
+                  />
+                ))}
+              </div>
+            ) : (
+              <div style={styles.emptyState}>
+                <p>No hosts match your current filters. Try broadening your search!</p>
+              </div>
+            )}
           </main>
         </div>
       </div>
     </div>
   );
 }
+
+const styles = {
+  layoutGrid: {
+    display: "grid",
+    gridTemplateColumns: "300px 1fr",
+    gap: "32px",
+  },
+  cardGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+    gap: "24px",
+  },
+  successBanner: {
+    backgroundColor: "#dcfce7",
+    color: "#166534",
+    padding: "16px",
+    borderRadius: "12px",
+    marginBottom: "24px",
+    border: "1px solid #bbf7d0",
+  },
+  errorBanner: {
+    backgroundColor: "#fee2e2",
+    color: "#991b1b",
+    padding: "16px",
+    borderRadius: "12px",
+    marginBottom: "24px",
+    border: "1px solid #fecaca",
+  },
+  statusMessage: {
+    textAlign: "center",
+    padding: "60px 0",
+    color: "#64748b",
+  },
+  emptyState: {
+    textAlign: "center",
+    padding: "80px 20px",
+    backgroundColor: "#ffffff",
+    borderRadius: "16px",
+    border: "1px solid #e2e8f0",
+    color: "#64748b",
+  }
+};

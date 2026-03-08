@@ -56,16 +56,17 @@ export default function Messages() {
   useEffect(() => {
     if (!socket || !user) return;
 
+    // Inside your useEffect for new-message
     socket.on("new-message", (data) => {
-      // If message is from the current conversation, add it to messages
+      const senderId = data.sender._id || data.sender;
+      const currentChatId = currentConversation?.participantId || currentConversation?.participant?._id;
+  
       if (
-        data.sender === currentConversation?.participantId ||
-        data.sender === currentConversation?.participant._id ||
-        data.sender === user._id
+        senderId?.toString() === currentChatId?.toString() || 
+        senderId?.toString() === user._id?.toString()
       ) {
         setMessages((prev) => [...prev, data]);
       }
-      // Refresh conversations list
       fetchConversations();
     });
 
@@ -324,8 +325,8 @@ export default function Messages() {
                   </div>
                 ) : (
                   messages.map((msg) => {
-                    const isOwn = msg.sender === user._id || msg.sender._id === user._id;
-                    return (
+                      const isOwn = msg.sender._id?.toString() === user._id?.toString() || msg.sender?.toString() === user._id?.toString();                    
+                      return (
                       <div
                         key={msg._id}
                         style={{

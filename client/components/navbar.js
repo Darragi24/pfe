@@ -175,7 +175,30 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
 
   const unreadCount = notifications.filter((n) => !n.read).length;
   const visibleNotifications = notifications.filter((n) => !n.read);
+const [lastChatId, setLastChatId] = useState(null);
 
+useEffect(() => {
+  const fetchLastChat = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await fetch("http://localhost:5000/api/messages/conversations", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      
+      // If there's at least one conversation, take the first one (most recent)
+      if (data && data.length > 0) {
+        setLastChatId(data[0].user._id);
+      }
+    } catch (err) {
+      console.error("Error fetching last chat ID", err);
+    }
+  };
+
+  if (user) fetchLastChat();
+}, [user]);
   // Navigation links (same as before)
   const handleLogout = () => {
     logoutUser();
@@ -201,9 +224,13 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
   ];
 
   const hostLinks = [{ label: "Planned Hosting", href: "/planned-hosting" }];
-  const sharedLinks = [
+const sharedLinks = [
     { label: "History", href: "/history" },
-    { label: "Messages", href: "/messages" },
+    { 
+      label: "Messages", 
+      // Link to specific user if found, otherwise keep at base /messages
+      href: lastChatId ? `/messages/${lastChatId}` : "/messages" 
+    },
   ];
 
   if (isOwner && isHost) {
