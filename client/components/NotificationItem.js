@@ -51,6 +51,8 @@ export default function NotificationItem({
     booking_request: "Booking request",
     booking_accepted: "Booking accepted",
     booking_rejected: "Booking rejected",
+    payment_success: "Payment Sent",
+    payment_received: "Payment Received",
   };
 
   return (
