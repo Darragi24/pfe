@@ -93,6 +93,7 @@ exports.sendMessage = async (req, res) => {
       const ids = [senderId.toString(), recipientId.toString()].sort();
       const roomId = ids.join("-");
       global.io.to(roomId).emit("new-message", message);
+      global.io.to(recipientId.toString()).emit("new-message", message);
     }
 
     res.status(201).json(message);
@@ -134,6 +135,22 @@ exports.markAsRead = async (req, res) => {
     );
 
     res.json({ message: "Messages marked as read" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// 5. Get TOTAL unread message count for the navbar badge
+exports.getUnreadCount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const count = await Message.countDocuments({
+      recipient: userId,
+      read: false,
+    });
+
+    res.json({ count });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

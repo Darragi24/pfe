@@ -47,8 +47,11 @@ export default function FindHost() {
 
       const token = localStorage.getItem("token");
       
+      // CRITICAL FIX: Add the query string to the URL
+      const queryString = params.toString() ? `?${params.toString()}` : "";
+      
       const response = await fetch(
-        `http://localhost:5000/api/bookings/hosts`,
+        `http://localhost:5000/api/bookings/hosts${queryString}`, // Added queryString here
         {
           method: "GET",
           headers: { 
@@ -69,7 +72,7 @@ export default function FindHost() {
       setLoading(false);
     }
   };
-
+  
   const handleFilterChange = (newFilters) => {
     setFilters((prev) => ({ ...prev, ...newFilters }));
   };

@@ -5,6 +5,7 @@ const {
   getConversation,
   getConversations,
   markAsRead,
+  getUnreadCount
 } = require("../controllers/messageController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -14,6 +15,7 @@ router.post("/", protect, sendMessage);
 // Get all conversations
 router.get("/conversations", protect, getConversations);
 
+router.get("/unread-count", protect, getUnreadCount);
 // Get conversation with specific user
 router.get("/:userId", protect, getConversation);
 
