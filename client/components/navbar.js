@@ -1,6 +1,6 @@
 import { useContext, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
-import { FiBell, FiUser, FiMessageSquare } from "react-icons/fi"; // Added Message Icon
+import { FiBell, FiUser, FiMessageSquare } from "react-icons/fi";
 import { AuthContext } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { approveHost, rejectHost } from "../services/authService";
@@ -8,7 +8,7 @@ import NotificationItem from "./NotificationItem";
 
 export default function Navbar({ notificationsCount: propCount = 0, onNotificationsClick }) {
   const { user, logoutUser } = useContext(AuthContext);
-  const { socket, isConnected } = useSocket() || {};
+  const { socket } = useSocket() || {};
   const router = useRouter();
 
   // Notification States
@@ -46,7 +46,7 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
-      // Ensure this endpoint exists on your backend
+      
       const res = await fetch("http://localhost:5000/api/messages/unread-count", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -72,13 +72,11 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
   useEffect(() => {
     if (!socket) return;
 
-    // Listener for general notifications
     socket.on("new-notification", () => fetchNotifications());
     socket.on("host-status-updated", () => fetchNotifications());
 
-    // Listener for real-time messages
     socket.on("new-message", (data) => {
-      // Logic: Only increment count if user is NOT currently looking at that specific chat
+      // Check if the user is currently looking at the chat that sent the message
       const isCurrentlyInThisChat = 
         router.pathname.includes("/messages") && 
         router.query.userId === (data.sender._id || data.sender);
@@ -117,6 +115,17 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
     if (onNotificationsClick) onNotificationsClick();
   };
 
+  // FIX: Redirects to /messages/[LOGGED_IN_USER_ID]
+  const handleMessageIconClick = () => {
+    const currentUserId = user?._id || user?.id;
+    if (currentUserId) {
+      router.push(`/messages/${currentUserId}`);
+    } else {
+      console.error("User ID not found in AuthContext");
+      router.push("/"); // Fallback
+    }
+  };
+
   const handleNotificationClick = async (notification) => {
     try {
       const token = localStorage.getItem("token");
@@ -133,7 +142,6 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
     setNotifications((n) => n.filter((x) => x._id !== notification._id));
     setShowDropdown(false);
 
-    // Navigation logic
     if (notification.type === "host_application_approved") router.push("/dashboard");
     else if (notification.type === "host_application_rejected") router.push("/becomehost");
     else if (notification.type === "new_booking_request") router.push("/requests");
@@ -179,17 +187,15 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
 
   if (isOwner) navLinks.push({ label: "My Pets", href: "/pets" }, { label: "Find a Host", href: "/find-host" }, { label: "My Bookings", href: "/bookings" }, { label: becomeLabel, href: "/becomehost" });
   if (isHost) navLinks.push({ label: "Planned Hosting", href: "/planned-hosting" });
-  navLinks.push({ label: "History", href: "/history" }, { label: "Messages", href: "/messages" });
+  navLinks.push({ label: "History", href: "/history" });
   if (isAdmin) navLinks.push({ label: "User Management", href: "/admin/users" }, { label: "Host Management", href: "/admin/hosts" });
 
   return (
     <nav style={{ width: "100%", padding: "12px 30px", display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", position: "sticky", top: 0, zIndex: 100 }}>
-      {/* Brand */}
       <div style={{ fontWeight: 700, color: "#4f46e5", fontSize: 20, cursor: "pointer" }} onClick={() => router.push("/")}>
         PetStay 🐾
       </div>
 
-      {/* Navigation Links */}
       <div style={{ display: "flex", gap: 12 }}>
         {navLinks.map((link) => (
           <div
@@ -213,13 +219,12 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
         ))}
       </div>
 
-      {/* Right Section: Messages + Notifications + Logout */}
       <div style={{ display: "flex", alignItems: "center", gap: 20, position: "relative" }} ref={dropdownRef}>
         
-        {/* MESSAGE ICON */}
+        {/* MESSAGE ICON - NOW USES LOGGED IN USER ID */}
         <div 
           style={{ position: "relative", cursor: "pointer", display: "flex", alignItems: "center" }}
-          onClick={() => router.push("/messages")}
+          onClick={handleMessageIconClick}
           title="Messages"
         >
           <FiMessageSquare size={24} color="#4f46e5" />
@@ -228,7 +233,6 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
           )}
         </div>
 
-        {/* NOTIFICATION BELL */}
         <div
           style={{ position: "relative", cursor: "pointer", display: "flex", alignItems: "center" }}
           onClick={handleBellClick}
@@ -240,7 +244,6 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
           )}
         </div>
 
-        {/* Notifications Dropdown */}
         {showDropdown && (
           <div style={{ position: "absolute", top: "45px", right: "80px", width: "320px", maxHeight: "400px", overflowY: "auto", backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.15)", border: "1px solid #e2e8f0", zIndex: 200 }}>
             <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", fontWeight: 600 }}>Notifications</div>
@@ -267,7 +270,6 @@ export default function Navbar({ notificationsCount: propCount = 0, onNotificati
   );
 }
 
-// Reusable Badge Style
 const badgeStyle = {
   position: "absolute",
   top: -6,
