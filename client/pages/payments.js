@@ -3,9 +3,12 @@ import { AuthContext } from "../context/AuthContext";
 import { useRouter } from "next/router";
 import { FiCreditCard, FiClock, FiCheckCircle, FiAlertCircle } from "react-icons/fi";
 import Navbar from "../components/navbar";
+import { useSocket } from "../context/SocketContext";
 
 export default function PaymentsPage() {
   const { user } = useContext(AuthContext);
+  // FIX: Destructure socket for real-time payment status updates
+  const { socket } = useSocket() || {};
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -32,23 +35,55 @@ export default function PaymentsPage() {
     if (user) fetchToPay();
   }, [user]);
 
+  // FIX: Listen for real-time payment confirmation via Socket.IO.
+  // Previously the page only used a 3-second polling timer, which was fragile.
+  // Now when the webhook fires and emits 'new-notification' (type: payment_success),
+  // we refresh immediately — no timer dependency.
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNotification = (notification) => {
+      if (
+        notification.type === "payment_success" ||
+        notification.type === "payment_received"
+      ) {
+        fetchToPay();
+      }
+    };
+
+    const handleBookingUpdated = (data) => {
+      if (data?.status === "completed") {
+        fetchToPay();
+      }
+    };
+
+    socket.on("new-notification", handleNotification);
+    socket.on("booking-updated", handleBookingUpdated);
+
+    // FIX: Properly clean up both event listeners on unmount to prevent memory leaks.
+    return () => {
+      socket.off("new-notification", handleNotification);
+      socket.off("booking-updated", handleBookingUpdated);
+    };
+  }, [socket]);
+
 useEffect(() => {
     if (router.query.payment === "success") {
       // 1. Refresh immediately to catch any fast updates
-      fetchToPay(); 
+      fetchToPay();
 
-      // 2. IMPORTANT: Refresh again after 3 seconds 
+      // 2. IMPORTANT: Refresh again after 3 seconds
       // This ensures that even if the Webhook was slow, the UI will update
       const timer = setTimeout(() => {
         console.log("Webhook sync: Refreshing payment status...");
         fetchToPay();
       }, 3000);
-      
+
       // 3. Clean the URL so the success message doesn't stay forever
       const urlTimer = setTimeout(() => {
         router.replace("/payments", undefined, { shallow: true });
       }, 6000);
-      
+
       return () => {
         clearTimeout(timer);
         clearTimeout(urlTimer);
@@ -66,10 +101,21 @@ useEffect(() => {
         },
         body: JSON.stringify({ bookingId }),
       });
+
+      // FIX: Check for HTTP error responses before reading JSON.
+      // Previously a 4xx/5xx error was silently ignored — no feedback to the user.
       const data = await res.json();
-      if (data.url) window.location.href = data.url;
+      if (!res.ok) {
+        alert(`Payment error: ${data.error || "Could not initialize payment. Please try again."}`);
+        return;
+      }
+
+      if (data.url) {
+        window.location.href = data.url;
+      }
     } catch (err) {
-      alert("Payment failed to initialize.");
+      console.error("Checkout error:", err);
+      alert("Payment failed to initialize. Please check your connection and try again.");
     }
   };
 
@@ -85,18 +131,18 @@ useEffect(() => {
 
       {/* --- SUCCESS BANNER --- */}
       {router.query.payment === "success" && (
-        <div style={{ 
-          padding: "15px", 
-          backgroundColor: "#d1fae5", 
-          color: "#065f46", 
-          borderRadius: "8px", 
+        <div style={{
+          padding: "15px",
+          backgroundColor: "#d1fae5",
+          color: "#065f46",
+          borderRadius: "8px",
           marginBottom: "20px",
           display: "flex",
           alignItems: "center",
           gap: "10px",
           border: "1px solid #34d399"
         }}>
-          <FiCheckCircle size={20} /> 
+          <FiCheckCircle size={20} />
           <strong>Transaction Successful!</strong> Your payment has been confirmed and the status is updated.
         </div>
       )}
@@ -109,15 +155,15 @@ useEffect(() => {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {bookings.map((booking) => (
-            <div 
-              key={booking._id} 
+            <div
+              key={booking._id}
               style={{
-                display: "flex", 
-                justifyContent: "space-between", 
-                alignItems: "center", 
-                padding: "20px", 
-                backgroundColor: "#fff", 
-                borderRadius: "12px", 
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "20px",
+                backgroundColor: "#fff",
+                borderRadius: "12px",
                 border: "1px solid #e5e7eb",
                 boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
               }}

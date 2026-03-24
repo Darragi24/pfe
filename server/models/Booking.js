@@ -49,6 +49,10 @@ const bookingSchema = new mongoose.Schema(
     rejectedAt: {
       type: Date,
     },
+    // FIX: Added paidAt timestamp to record exactly when payment was confirmed via webhook.
+    paidAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

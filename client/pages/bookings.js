@@ -114,7 +114,8 @@ export default function Bookings() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: "0 0 8px 0", color: "#1e293b" }}>
-            {isSent ? booking.host.fullName : booking.requester.fullName}
+            {/* FIX: User model uses 'name', not 'fullName' — 'fullName' was always undefined */}
+            {isSent ? booking.host?.name : booking.requester?.name}
           </h3>
           <p style={{ margin: "4px 0", color: "#64748b", fontSize: "0.9rem" }}>
             📅 {new Date(booking.startDate).toLocaleDateString()} to{" "}
